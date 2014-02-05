@@ -1,0 +1,10 @@
+*-meta
+*.pyc
+*.vcd
+.*.swp
+nohup.out
+tb
+tmp
+
+# allow "tb" directories
+!tb/
