@@ -1,6 +1,6 @@
 ################################################################################
 #
-# Copyright 2013, Sinclair R.F., Inc.
+# Copyright 2014, Sinclair R.F., Inc.
 #
 ################################################################################
 
@@ -9,12 +9,11 @@ import re;
 from ssbccPeripheral import SSBCCperipheral
 from ssbccUtil import SSBCCException;
 
-class big_outport(SSBCCperipheral):
+class wide_strobe(SSBCCperipheral):
   """
-  Shift two or more writes to a single OUTPORT to construct a wide output
-  signal.\n
+  Generate more than one simultaneous strobe.\n
   Usage:
-    PERIPHERAL big_outport                      \\
+    PERIPHERAL wide_strobe                      \\
                         outport=O_name          \\
                         outsignal=o_name        \\
                         width=<N>\n
@@ -24,35 +23,16 @@ class big_outport(SSBCCperipheral):
     outsignal=o_name
       specifies the name of the signal output from the module
     width=<N>
-      specifies the width of the I/O\n
-  Example:  Create a 26-bit output signal for output of 26-bit or 18-bit values
-  from the processor to external IP.\n
-    PORTCOMMENT 26-bit output for use by other modules
-    PERIPHERAL big_outport                             \\
-                        output=O_26BIT_SIGNAL          \\
-                        outsignal=o_26bit_signal       \\
-                        width=26
-    OUTPORT     strobe  o_wr_26bit      O_WR_26BIT
-    OUTPORT     strobe  o_wr_18bit      O_WR_18BIT\n
-  Writing a 26-bit value requires 4 successive outports to O_26BIT_SIGNAL,
-  starting with the MSB as follows:\n
-    ; Write 0x024a_5b6c to the XXX module
-    0x02 .outport(O_26BIT_SIGNAL)
-    0x4a .outport(O_26BIT_SIGNAL)
-    0x5b .outport(O_26BIT_SIGNAL)
-    0x6c .outport(O_26BIT_SIGNAL)
-    .outstrobe(O_WR_26BIT)\n
-  Writing an 18-bit value requires 3 successive outports to O_26BIT_SIGNAL
-  starting with the MSB as illustrated by the following function:\n
-    ; Read the 18-bit value from memory and then write it to a peripheral.
-    ; Note:  The multi-byte value is stored MSB first in memory.
-    ; ( u_addr - )
-    .function write_18bit_from_memory
-      ${3-1} :loop r>
-        .fetch+(ram) .outport(O_26BIT_SIGNAL)
-      >r .jumpc(loop,1-) drop
-      .outstrobe(O_WR_18BIT)
-      .return(drop)
+      specifies the width of the I/O
+      Note:  N must be between 1 and 8 inclusive.\n
+  Example:  Generate up to 4 simultaneous strobes.\n
+    PORTCOMMENT 4 bit wide strobe
+    PERIPHERAL wide_strobe                      \\
+                        outport=O_4BIT_STROBE   \\
+                        outsignal=o_4bit_strobe \\
+                        width=4\n
+    Send strobes on bits 1 and 3 of the wide strobe as follows:\n
+      ${2**1|2**3} .outport(O_4BIT_STROBE)
   """
 
   def __init__(self,peripheralFile,config,param_list,loc):
@@ -84,21 +64,20 @@ class big_outport(SSBCCperipheral):
 
   def GenVerilog(self,fp,config):
     body = """//
-// PERIPHERAL big_outport:  @NAME@
+// PERIPHERAL wide_strobe:  @NAME@
 //
 initial @NAME@ = @WIDTH@'d0;
 always @ (posedge i_clk)
   if (i_rst)
     @NAME@ <= @WIDTH@'d0;
   else if (s_outport && (s_T == @IX_OUTPORT@))
-    @NAME@ <= { @NAME@[@WIDTH-9:0@], s_N };
+    @NAME@ <= s_N[0+:@WIDTH@];
   else
-    @NAME@ <= @NAME@;
+    @NAME@ <= @WIDTH@'d0;
 """
     for subpair in (
       (r'@IX_OUTPORT@', "8'd%d" % self.ix_outport,                              ),
       (r'@WIDTH@',      str(self.width),                                        ),
-      (r'@WIDTH-9:0@',  '%d:0' % (self.width-9) if self.width > 9 else '0'      ),
       (r'@NAME@',       self.outsignal,                                         ),
     ):
       body = re.sub(subpair[0],subpair[1],body);

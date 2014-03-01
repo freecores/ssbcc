@@ -7,6 +7,7 @@
 ################################################################################
 
 import math
+import os
 import re
 
 ################################################################################
@@ -73,10 +74,38 @@ def IntValue(v):
   """
   Convert a Verilog format integer into an integer value.
   """
+  save_v = v;
+  if re.match(r'([1-9]\d*)?\'[bodh]',v):
+    length = 0;
+    while v[0] != '\'':
+      length *= 10;
+      length += ord(v[0]) - ord('0');
+      v = v[1:];
+    v=v[1:];
+    if v[0] == 'b':
+      base = 2;
+    elif v[0] == 'o':
+      base = 8;
+    elif v[0] == 'd':
+      base = 10;
+    elif v[0] == 'h':
+      base = 16;
+    else:
+      raise Exception('Program bug -- unrecognized base:  "%c"' % v[0]);
+    v = v[1:];
+  else:
+    length = 0;
+    base = 10;
   ov = 0;
-  for vv in [v[i] for i in range(len(v)) if '0' <= v[i] <= '9']:
-    ov *= 10;
-    ov += ord(vv)-ord('0');
+  for vv in [v[i] for i in range(len(v)) if v[i] != '_']:
+    ov *= base;
+    try:
+      dv = int(vv,base);
+    except:
+      raise SSBCCException('Malformed parameter value:  "%s"' % save_v);
+    ov += dv;
+  if length > 0 and ov >= 2**length:
+    raise SSBCCException('Paramter length and value don\'t match:  "%s"' % save_v);
   return ov;
 
 def IsPowerOf2(v):
@@ -85,29 +114,35 @@ def IsPowerOf2(v):
   """
   return v == 2**int(math.log(v,2)+0.5);
 
-def LoadFile(filename):
+def LoadFile(filename,config):
   """
   Load the file into a list with the line contents and line numbers.\n
   filename is either the name of the file or a file object.\n
   Note:  The file object is closed in either case.
   """
   if type(filename) == str:
-    try:
-      filename = file(filename);
-    except:
-      raise SSBCCException('Error opening "%s"' % filename);
+    for path in config.includepaths:
+      fullfilename = os.path.join(path,filename);
+      if os.path.isfile(fullfilename):
+        try:
+          fp = file(fullfilename);
+        except:
+          raise SSBCCException('Error opening "%s"' % filename);
+        break;
+    else:
+      raise SSBCCException('.INCLUDE file "%s" not found' % filename);
   elif type(filename) == file:
-    pass;
+    fp = filename;
   else:
     raise Exception('Unexpected argument type:  %s' % type(filename))
   v = list();
   ixLine = 0;
-  for tmpLine in filename:
+  for tmpLine in fp:
     ixLine += 1;
     while tmpLine and tmpLine[-1] in ('\n','\r',):
       tmpLine = tmpLine[0:-1];
     v.append((tmpLine,ixLine,));
-  filename.close();
+  fp.close();
   return v;
 
 ################################################################################

@@ -41,8 +41,12 @@ class SSBCCconfig():
     # list of how the memories will be instantiated
     self.config['combine'] = list();
 
+    # initial search path for .INCLUDE configuration commands
+    self.includepaths = list();
+    self.includepaths.append('.');
+
     # initial search paths for peripherals
-    self.peripheralpaths= list();
+    self.peripheralpaths = list();
     self.peripheralpaths.append('.');
     self.peripheralpaths.append('peripherals');
     self.peripheralpaths.append(os.path.join(sys.path[0],'core/peripherals'));
@@ -162,6 +166,14 @@ class SSBCCconfig():
       else:
         raise SSBCCException('Symbol "%s" already defined before %s' % (name,loc,));
     self.symbols.append(name);
+
+  def AppendIncludePath(self,path):
+    """
+    Add the specified path to the end of the paths to search for .INCLUDE
+    configuration commands.\n
+    path        path to add to the list
+    """
+    self.includepaths.insert(-1,path);
 
   def CompleteCombines(self):
     """
@@ -294,7 +306,7 @@ class SSBCCconfig():
       thisSlice = '[0+:8]';
     for ix in range(len(self.parameters)):
       if self.parameters[ix][0] == name:
-        return ExtractBits(int(self.parameters[ix][1]),thisSlice);
+        return ExtractBits(IntValue(self.parameters[ix][1]),thisSlice);
     else:
       raise Exception('Program Bug:  Parameter "%s" not found' % name);
 
@@ -804,7 +816,7 @@ class SSBCCconfig():
       nBlocks = int(value[findStar+1:]);
     nbits_blockSize = int(round(math.log(blockSize,2)));
     if blockSize != 2**nbits_blockSize:
-      raise SSBCCException('block size must be a power of 2 on line %d: "%s"' % errorInfo);
+      raise SSBCCException('block size must be a power of 2 at %s: "%s"' % errorInfo);
     nbits_nBlocks = CeilLog2(nBlocks);
     self.Set(name, dict(
                    length=blockSize*nBlocks,

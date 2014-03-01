@@ -48,11 +48,14 @@ try:
   argListParser.add_argument('-D', metavar='symbol', type=str, action='append', help='Define symbol');
   argListParser.add_argument('-G', metavar='parameter_name=value', type=str, action='append', help='Override parameter value');
   argListParser.add_argument('-I', metavar='include_dir', type=str, action='append', help='Add search directory for included files and peripherals');
+  argListParser.add_argument('-M', metavar='macropath', action='append', help='Macro search path');
   argListParser.add_argument('-P', metavar='peripheral_name[="parameters"]', type=str, action='append', help='Add peripheral');
   argListParser.add_argument('-o', metavar='outCoreName', type=str, help='output core name');
   argListParser.add_argument('-q', action='store_true', help='quiet');
   argListParser.add_argument('--define-clog2', action='store_true', help='define clog2 instead of using built-in $clog2');
   argListParser.add_argument('--display-opcode', action='store_true', help='add 3-letter decode of opcode (for trace viewer)');
+  argListParser.add_argument('--rand-instr-mem', action='store_true', help='fill unused instruction memory with random values');
+  argListParser.add_argument('--synth-instr-mem', type=str, help='synthesis constraint for instruction memory');
   argListParser.add_argument('--verilator-tracing-on', action='store_true', help='show all signals in verilator waveform files');
   argListParser.add_argument('filename', metavar='filename', type=validateFile, help='SSBCC configuration file');
   argList = argListParser.parse_args();
@@ -64,6 +67,7 @@ try:
   config = SSBCCconfig();
 
   config.Set('define_clog2',argList.define_clog2);
+  config.Set('rand_instr_mem',argList.rand_instr_mem);
   config.Set('verilator_tracing_on',argList.verilator_tracing_on);
 
   if argList.display_opcode:
@@ -73,17 +77,31 @@ try:
     for symbol in argList.D:
       config.AddSymbol(symbol);
 
+  if argList.I:
+    for pathString in argList.I:
+      if not os.path.isdir(pathString):
+        raise SSBCCException('Bad path string:  "%s"' % pathString);
+      config.AppendIncludePath(pathString);
+      config.InsertPeripheralPath(pathString);
+
   if argList.o:
     config.Set('outCoreName',argList.o);
   else:
     config.Set('outCoreName',os.path.splitext(os.path.basename(argList.filename.name))[0]);
 
+  if argList.synth_instr_mem:
+    config.Set('synth_instr_mem',argList.synth_instr_mem);
+  else:
+    config.Set('synth_instr_mem',None);
+
   #
   # Read the configuration file into a line-by-line buffer.
+  # Note:  argList.filename is a file handle, so no paths will be searched by
+  #        LoadFile.  This is ensured by setting config to None.
   #
 
   filename = argList.filename.name;
-  configList = LoadFile(argList.filename);
+  configList = LoadFile(argList.filename,None);
   ifstack = list();
 
   configListStack = list();
@@ -149,7 +167,7 @@ try:
         raise SSBCCException('Malformed ".INCLUDE" configuration command on %s' % loc);
       configListStack.append((filename,configList,ifstack,));
       filename = cmd[0];
-      configList = LoadFile(filename);
+      configList = LoadFile(filename,config);
       ifstack = list();
     # Consume configuration commands disabled by conditionals
     elif ifstack and not ifstack[-1]:
@@ -275,8 +293,9 @@ try:
     # USER_HEADER
     elif re.match(r'\s*USER_HEADER\b',line):
       user_header_done = False;
-      while (line,ixLine) in configList:
-        if re.match(r'\s*END_USER_HEADER\s',line):
+      while configList:
+        (line,ixLine) = configList.pop(0);
+        if re.match(r'\s*END_USER_HEADER\b',line):
           user_header_done = True;
           break;
         user_header.append(line);
@@ -302,12 +321,6 @@ try:
       cmd = re.findall(r'([LG]_\w+)=(\S+)',parameter);
       cmd = cmd[0];
       config.OverrideParameter(cmd[0],cmd[1]);
-
-  if argList.I:
-    for pathString in argList.I:
-      if not os.path.isdir(pathString):
-        raise SSBCCException('Bad path string:  "%s"' % pathString);
-      config.InsertPeripheralPath(pathString);
 
   #
   # Append peripherals from command-line.
@@ -382,7 +395,11 @@ try:
   cmd += ' -o ' + assemblerOutput;
   for stack_name in ('data_stack','return_stack',):
     cmd += ' -s %s=%d' % (stack_name,config.config[stack_name],);
-  cmd += ' -L %s/%s' % (sys.path[0], 'lib/9x8');
+  cmd += ' -L %s' % os.path.join(sys.path[0],'lib','9x8');
+  if argList.M:
+    for path in argList.M:
+      cmd += ' -M %s' % path;
+  cmd += ' -M %s' % os.path.join(sys.path[0],'macros','9x8');
   if argList.I:
     for pathString in argList.I:
       cmd += ' -L %s' % pathString;

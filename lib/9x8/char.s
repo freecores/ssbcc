@@ -7,19 +7,50 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
-; Conversion to and from hex.
+; Convert to and from binary.
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Convert a single binary digit to its byte value.  Return 0x00 on success and
+; 0xFF on failure.
+; ( u_binary_n - u f )
+.function char__binary_to_byte
+  '0' -
+  dup 0xFE & .jumpc(error)
+  .return(0)
+  :error .return(0xFF)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; Convert to and from hex.
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; Convert a byte to its 2-digit hex representation with the digit for the most
-; significant nible at the top of the data stack.
+; significant nibble at the top of the data stack.
 ; ( u - u_hex_lsn u_hex_msn )
 .function char__byte_to_2hex
-  ; ( u - u u_hex_low )
+  ; ( u - u u_hex_lsn )
   dup 0x0F .call(char__nibble_to_hex,&)
-  ; ( u u_hex_low - u_hex_low u_hex_high )
+  ; ( u u_hex_lsn - u_hex_lsn u_hex_msn )
   swap 0>> 0>> 0>> .call(char__nibble_to_hex,0>>)
   .return
+
+; Convert a byte to the minimal 1 or 2 digit hex representation with the digit
+; for the most significant nibble at the top of the data stack.
+; ( u - u_hex_lsn u_hex_msn ) or ( u - u_hex_lsn )
+.function char__byte_to_hex
+  dup 0xF0 & .jumpc(include_msn)
+    .call(char__nibble_to_hex) .return
+  :include_msn
+    .call(char__byte_to_2hex) .return
+
+; Convert a 4 byte value to its 8-digit hexadecimal representation.
+; ( u_LSB u u u_MSB - )
+.function char__4byte_to_8hex
+  >r >r >r >r
+  ${4-1} :loop r> swap >r .call(char__byte_to_2hex) r> .jumpc(loop,1-)
+  .return(drop)
 
 ; Convert a nibble between 0x00 and 0x0F inclusive to it hex digit.
 ; ( u - u_hex_n )
