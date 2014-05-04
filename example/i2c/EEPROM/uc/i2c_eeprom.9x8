@@ -1,15 +1,16 @@
-# Copyright 2012, Sinclair R.F., Inc.
+# Copyright 2012, 2014, Sinclair R.F., Inc.
 #
 # Run a TI TMP100 I2C Temperature sensor.  Report the temperature once per
 # second over a 9600 baud UART as a hex value.
 
 ARCHITECTURE core/9x8 Verilog
 
-INSTRUCTION     1024
+INSTRUCTION     2048
 DATA_STACK      32
 RETURN_STACK    32
 
-MEMORY          RAM ram 32
+MEMORY          RAM     ram             32
+MEMORY          ROM     messages        128
 
 PORTCOMMENT     I2C bus
 PERIPHERAL      open_drain      inport=I_SCL \
@@ -19,9 +20,9 @@ PERIPHERAL      open_drain      inport=I_SDA \
                                 outport=O_SDA \
                                 iosignal=io_sda
 
-PORTCOMMENT     UART_Tx ports
+PORTCOMMENT     UART_Tx port
 PERIPHERAL      UART_Tx         outport=O_UART_TX \
-                                inport=I_UART_TX \
-                                baudmethod=97000000/9600
+                                outstatus=I_UART_TX \
+                                baudmethod="100_000_000/115200"
 
-ASSEMBLY i2c_tmp100.s
+ASSEMBLY i2c_eeprom.s

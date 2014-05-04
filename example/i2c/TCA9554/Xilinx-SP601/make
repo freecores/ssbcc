@@ -1,6 +1,11 @@
 #!/bin/sh
 #
 # Make script for SP601 board.
+#
+# Usage:
+#   ./make |& tee log
+
+source /opt/Xilinx/14.7/ISE_DS/settings64.sh
 
 # Ensure the script to build the micro processor is present.
 if [ -n "`which ssbcc | sed -n -e '/^which:/p'`" ]; then
@@ -17,7 +22,7 @@ NAME=sp601
 DEVICE=xc6slx16-2-csg324
 
 FILES="";
-FILES+=" ../../i2c_eeprom.v";
+FILES+=" ../uc/i2c_tca9554.v";
 FILES+=" ${NAME}.v";
 
 #
@@ -25,10 +30,10 @@ FILES+=" ${NAME}.v";
 #
 
 # Build the micro processor.
-( cd ../..; ssbcc --define-clog i2c_eeprom.9x8 ) || exit 1;
+( cd ../uc; ssbcc --define-clog i2c_tca9554.9x8 ) || { echo "SSBCC failed" > /dev/stderr; exit 1; }
 
 #
-# Configure and run the synthesis
+# Configure and run synthesis.
 #
 
 for fname in ${FILES}; do
@@ -96,10 +101,10 @@ EOF
 xst \
   -ifn "${NAME}.xst" \
   -ofn "${NAME}.syr" \
-|| { echo "XST Failed!"; exit 1; }
+|| { echo "XST Failed!" > /dev/stderr; exit 1; }
 
 #
-# Run through PAR
+# Run through PAR.
 #
 
 ngdbuild \
@@ -108,7 +113,7 @@ ngdbuild \
   -uc ${NAME}.ucf \
   -p ${DEVICE} \
   ${NAME}.ngc ${NAME}.ngd \
-|| { echo "ngdbuild Failed!"; exit 1; }
+|| { echo "ngdbuild Failed!" > /dev/stderr; exit 1; }
 
 map \
   -p ${DEVICE} \
@@ -127,20 +132,20 @@ map \
   -power off \
   -o ${NAME}.ncd \
   ${NAME}.ngd ${NAME}.pcf \
-|| { echo "MAP Failed!"; exit 1; }
+|| { echo "MAP Failed!" > /dev/stderr; exit 1; }
 
 par \
   -w \
   -ol high \
   -mt off \
   ${NAME}.ncd ${NAME}.ncd ${NAME}.pcf \
-|| { echo "PAR Failed!"; exit 1; }
+|| { echo "PAR Failed!" > /dev/stderr; exit 1; }
 
 #
-# Optionally perform timing analysis
+# Optionally perform timing analysis.
 #
 
-if [ `false` ]; then
+if false; then
   trce \
     -v 3 \
     -s 3 \
@@ -191,4 +196,4 @@ cat <<EOF >${NAME}.ut
 EOF
 
 bitgen -f ${NAME}.ut ${NAME}.ncd \
-|| { echo "BITGEN Failed!"; exit 1; }
+|| { echo "BITGEN Failed!" > /dev/stderr; exit 1; }

@@ -2,8 +2,7 @@
  *
  * Copyright 2012, Sinclair R.F., Inc.
  *
- * Top-level module to demonstrate reading four TMP100 I2C temperature sensors
- * and  to display their hex outputs to a console about once per second.
+ * Top-level module to demonstrate I2C EEPROM write/read operation.
  *
  ******************************************************************************/
 
@@ -15,10 +14,7 @@ module sp601(
   inout  wire   iop_i2c_scl,
   inout  wire   iop_i2c_sda,
   // UART Tx
-  output wire   op_usb_1_rx,
-  // echo I2C bus to logic analyzer
-  output wire   op_i2c_scl,
-  output wire   op_i2c_sda
+  output wire   op_usb_1_rx
 );
 
 /*
@@ -33,14 +29,16 @@ IBUFGDS sysclk_inst(
 );
 
 wire s_divclk;
-BUFIO2 bufio2_inst(
+BUFIO2 #(
+  .DIVIDE               (4),
+  .DIVIDE_BYPASS        ("FALSE"),
+  .USE_DOUBLER          ("TRUE")
+) bufio2_inst (
   .I            (s_sysclk),
   .IOCLK        (),
   .DIVCLK       (s_divclk),
   .SERDESSTROBE ()
 );
-defparam bufio2_inst.DIVIDE             = 2;
-defparam bufio2_inst.DIVIDE_BYPASS      = "FALSE";
 
 wire s_clk;
 BUFG sclk_inst(
@@ -67,7 +65,7 @@ always @ (posedge s_clk)
  * Instantiate the micro controller.
  */
 
-i2c_tmp100 ie_inst(
+i2c_eeprom ie_inst(
   // synchronous reset and processor clock
   .i_rst        (s_rst),
   .i_clk        (s_clk),
@@ -77,12 +75,5 @@ i2c_tmp100 ie_inst(
   // UART_Tx port
   .o_UART_Tx    (op_usb_1_rx)
 );
-
-/*
- * Copy the I2C bus to the logic analyzer outputs.
- */
-
-assign op_i2c_scl = iop_i2c_scl;
-assign op_i2c_sda = iop_i2c_sda;
 
 endmodule

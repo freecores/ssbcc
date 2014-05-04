@@ -1,10 +1,11 @@
-*.bgn
 *.bit
+*.bgn
 *.bld
 *.csv
 *.drc
 _impact.*
 *.ipf
+log
 *.log
 *.lso
 *.map
